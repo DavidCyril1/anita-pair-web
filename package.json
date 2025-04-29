@@ -1,30 +1,48 @@
 {
-  "name": "Anita_Pairing",
+  "name": "queen-anita-v4-pairing-site",
   "version": "1.0.0",
-  "description": "Made By David cyril.",
-  "main": "index.js",
-  "type": "commonjs",
+  "description": "A beautiful web interface for pairing WhatsApp with QUEEN ANITA V4 bot and retrieving session credentials",
+  "main": "pairing-site.js",
   "scripts": {
-    "start": "node pairing.js"
+    "start": "node pairing-site.js",
+    "dev": "nodemon pairing-site.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "David Cyril",
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "pairing",
+    "queen-anita",
+    "baileys"
+  ],
+  "author": "Your Name",
   "license": "MIT",
   "dependencies": {
-            "@whiskeysockets/baileys": "github:kangfarrel/felzar-Baileys",
-    "@hapi/boom": "^10.0.1",
-    "axios": "^1.6.8",
-        "express": "^4.18.2",
-    "@ffmpeg-installer/ffmpeg": "^1.1.0",
-    "fluent-ffmpeg": "^2.1.3",
-"path": "^0.12.7",
-    "form-data": "^4.0.0",
-    "fs-extra": "^10.0.0",
-    "node-cache": "^5.1.2",
-    "pm2": "^5.2.0",
+  "@whiskeysockets/baileys": "github:kangfarrel/felzar-Baileys",
+    "express": "^4.18.2",
     "qrcode": "^1.5.3",
+    "dotenv": "^16.3.1",
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "compression": "^1.7.4"
   },
-  "keywords": ["WhatsApp", "bot", "Baileys", "multi-device"],
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1"
+  },
   "engines": {
-    "node": "22.x"
-  }
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DavidCyrilTech/anita-pair-web.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DavidCyrilTech/anita-pair-web/issues"
+  },
+  "homepage": "https://github.com/DavidCyrilTech/anita-pair-web#readme"
 }
