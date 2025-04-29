@@ -1,51 +1,87 @@
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 const fs = require('fs');
 const path = require('path');
-const qrcode = require('qrcode');
-const { makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const logger = require('pino')({ level: 'silent' }); // Reduced logging
 
 // Middleware
-app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static('public'));
 
-// Global variables to store session data
-let pairingSocket = null;
+// Session management
+let activeSocket = null;
 let pairingCode = null;
 let sessionData = null;
+let retryCount = 0;
+const MAX_RETRIES = 3;
+
+// Enhanced connection handler
+async function connectToWhatsApp() {
+    const { state, saveCreds } = await useMultiFileAuthState("pairing_session");
+    
+    try {
+        const socket = makeWASocket({
+            auth: state,
+            logger,
+            printQRInTerminal: false,
+            browser: ["Ubuntu", "Chrome", "22.04.4"],
+            connectTimeoutMs: 30000,
+            keepAliveIntervalMs: 15000,
+            markOnlineOnConnect: false, // Reduce connection load
+        });
+
+        socket.ev.on('connection.update', (update) => {
+            const { connection, lastDisconnect } = update;
+            if (connection === 'close') {
+                const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+                if (reason === DisconnectReason.connectionLost && retryCount < MAX_RETRIES) {
+                    retryCount++;
+                    console.log(`Reconnecting... Attempt ${retryCount}/${MAX_RETRIES}`);
+                    setTimeout(connectToWhatsApp, 2000);
+                } else {
+                    console.log('Connection terminated:', DisconnectReason[reason] || reason);
+                    activeSocket = null;
+                }
+            } else if (connection === 'open') {
+                console.log('Successfully connected to WhatsApp');
+                retryCount = 0; // Reset on successful connection
+            }
+        });
+
+        socket.ev.on('creds.update', saveCreds);
+        return socket;
+    } catch (error) {
+        console.error('Connection error:', error);
+        return null;
+    }
+}
 
 // Routes
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 app.post('/start-pairing', async (req, res) => {
     const { phoneNumber } = req.body;
     
-    try {
-        // Initialize WhatsApp socket
-        const { state, saveCreds } = await useMultiFileAuthState("pairing_session");
-        pairingSocket = makeWASocket({
-            auth: state,
-            printQRInTerminal: false,
-        });
+    if (!/^\d+$/.test(phoneNumber)) {
+        return res.status(400).json({ error: 'Invalid phone number format' });
+    }
 
-        // Request pairing code
-        pairingCode = await pairingSocket.requestPairingCode(phoneNumber);
+    try {
+        if (!activeSocket) {
+            activeSocket = await connectToWhatsApp();
+            if (!activeSocket) {
+                throw new Error('Failed to establish WhatsApp connection');
+            }
+        }
+
+        pairingCode = await activeSocket.requestPairingCode(phoneNumber);
         
-        // Listen for credentials update
-        pairingSocket.ev.on('creds.update', async () => {
-            // Read the session file
-            const sessionPath = path.join(__dirname, 'pairing_session', 'creds.json');
-            if (fs.existsSync(sessionPath)) {
+        // Watch for session file changes
+        const sessionPath = path.join(__dirname, 'pairing_session', 'creds.json');
+        const watcher = fs.watch(sessionPath, (eventType) => {
+            if (eventType === 'change') {
                 sessionData = fs.readFileSync(sessionPath, 'utf-8');
-                console.log('Session data captured:', sessionData);
-                
-                // Clean up
-                await pairingSocket.end();
-                pairingSocket = null;
+                watcher.close(); // Stop watching after getting the session
             }
         });
 
@@ -55,28 +91,32 @@ app.post('/start-pairing', async (req, res) => {
         });
     } catch (error) {
         console.error('Pairing error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            error: error.message || 'Failed to generate pairing code' 
+        });
     }
 });
 
-app.get('/check-session', (req, res) => {
+// Health check endpoint
+app.get('/health', (req, res) => {
     res.json({ 
-        hasSession: !!sessionData,
-        sessionData: sessionData 
+        status: activeSocket ? 'connected' : 'disconnected',
+        timestamp: new Date().toISOString() 
     });
-});
-
-app.get('/download-session', (req, res) => {
-    if (!sessionData) {
-        return res.status(404).send('Session not available yet');
-    }
-    
-    res.setHeader('Content-disposition', 'attachment; filename=creds.json');
-    res.setHeader('Content-type', 'application/json');
-    res.send(sessionData);
 });
 
 // Start server
 app.listen(PORT, () => {
     console.log(`Pairing site running on http://localhost:${PORT}`);
+    // Initialize connection on startup
+    connectToWhatsApp().then(sock => activeSocket = sock);
+});
+
+// Cleanup on exit
+process.on('SIGINT', () => {
+    if (activeSocket) {
+        activeSocket.end();
+    }
+    process.exit();
 });
