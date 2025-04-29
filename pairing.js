@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const logger = require('pino')({ level: 'silent' }); // Reduced logging
-
+const { Boom } = require('@hapi/boom')
 // Middleware
 app.use(express.json());
 app.use(express.static('public'));
