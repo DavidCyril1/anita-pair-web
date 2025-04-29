@@ -2,7 +2,7 @@
   "name": "queen-anita-v4-pairing-site",
   "version": "1.0.0",
   "description": "A beautiful web interface for pairing WhatsApp with QUEEN ANITA V4 bot and retrieving session credentials",
-  "main": "pairing-site.js",
+  "main": "pairing.js",
   "scripts": {
     "start": "node pairing-site.js",
     "dev": "nodemon pairing-site.js",
